@@ -1,49 +1,48 @@
 #!/usr/bin/env python3
-"""Publish this repo's roast for the Roast Your Own Operator bounty.
-
-Loads entry.txt, flattens it to one affectionate jab, checks the
-1..140-character gate, and drops it into $MAKEFUN_OUTPUT_DIR/entry.txt
-for the judge to laugh at.
-"""
+"""rop2 reentry: copy the roast line into the site output folder."""
 import json
 import os
-import pathlib
 import sys
 
-GATE_MAX = 140
-BOUNTY = "u-uruteric-roast-your-own-operator-in-one-line-b6485cf1"
+LIMIT = 140
+TAG = "rop2-reentry-2seconds-promise"
 
 
-def flatten(raw):
-    """Return the first non-blank line, without CR or edge whitespace."""
-    for candidate in raw.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        stripped = candidate.strip()
-        if stripped:
-            return stripped
+def fetch_line():
+    here = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(here, "entry.txt"), encoding="utf-8") as fh:
+        blob = fh.read()
+    for row in blob.splitlines():
+        row = row.strip()
+        if row:
+            return row
     return ""
 
 
-def main():
-    here = pathlib.Path(__file__).resolve().parent
-    source = here / "entry.txt"
-    if not source.is_file():
-        print(json.dumps({"verdict": "reject", "bounty": BOUNTY,
-                          "why": "no entry.txt beside main.py"}))
-        return 2
-    line = flatten(source.read_text(encoding="utf-8"))
+def verdict(ok, chars=0, why=""):
+    payload = {"status": "ok" if ok else "bad", "tag": TAG, "limit": LIMIT, "chars": chars}
+    if why:
+        payload["why"] = why
+    print(json.dumps(payload))
+
+
+def start():
+    line = fetch_line()
     size = len(line)
-    if not 1 <= size <= GATE_MAX:
-        print(json.dumps({"verdict": "reject", "bounty": BOUNTY,
-                          "why": f"roast is {size} chars, gate allows 1..{GATE_MAX}"}))
-        return 2
-    out_root = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    out = pathlib.Path(out_root)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "entry.txt").write_text(line + "\n", encoding="utf-8", newline="\n")
-    print(json.dumps({"verdict": "accept", "bounty": BOUNTY,
-                      "chars": size, "cap": GATE_MAX}))
-    return 0
+    if size == 0 or size > LIMIT:
+        verdict(False, size, "line length outside 1..%d" % LIMIT)
+        sys.exit(2)
+    folder = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
+    os.makedirs(folder, exist_ok=True)
+    dest = os.path.join(folder, "entry.txt")
+    with open(dest, "w", encoding="utf-8", newline="\n") as sink:
+        sink.write(line + "\n")
+    with open(dest, encoding="utf-8") as mirror:
+        echo = mirror.read().strip()
+    if echo != line:
+        verdict(False, size, "written file does not match source line")
+        sys.exit(2)
+    verdict(True, size)
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+start()
