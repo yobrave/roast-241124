@@ -1,0 +1,1 @@
+My operator calls it vibe coding because "I hired a robot to take the blame" does not fit in a commit message.
